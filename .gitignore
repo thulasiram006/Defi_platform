@@ -1,0 +1,16 @@
+node_modules/
+frontend/node_modules/
+backend/node_modules/
+blockchain/artifacts/
+blockchain/cache/
+frontend/dist/
+__pycache__/
+*.pyc
+venv/
+.env
+*.env
+.streamlit/secrets.toml
+secrets.toml
+*.log
+**/.streamlit/** 
+**/.streaml* 

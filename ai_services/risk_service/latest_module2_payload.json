@@ -1,0 +1,13 @@
+{
+  "borrower_wallet_address": "0xfe821f5509fdea3f72362d001697ad8c11f0c111",
+  "verified_monthly_income": 18200.0,
+  "total_liabilities": 24500.0,
+  "requested_loan_amount": 25000.0,
+  "discrepancy_ratio": 1.3736263736263736,
+  "dr_risk_penalty": 0.0,
+  "on_chain_risk": 0.999948,
+  "off_chain_risk": 0.114176,
+  "final_risk": 0.734217,
+  "risk_level": "CRITICAL",
+  "decision": "REVERTED"
+}

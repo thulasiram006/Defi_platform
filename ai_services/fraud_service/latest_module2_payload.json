@@ -1,0 +1,23 @@
+{
+  "borrower_wallet_address": "0x00009277775ac7d0d59eaad8fee3d10ac6c805e8",
+  "wallet_address": "0x00009277775ac7d0d59eaad8fee3d10ac6c805e8",
+  "verified_monthly_income": 94400.0,
+  "total_liabilities": 1250000.0,
+  "requested_loan_amount": 2.0,
+  "discrepancy_ratio": 2.1186440677966103e-05,
+  "dr_risk_penalty": 0.0,
+  "action": "borrow",
+  "amount": 2.0,
+  "collateral_amount": 0.0,
+  "collateral": 0.0,
+  "fraud_probability": 0.001088,
+  "fraud_status": "LOW",
+  "decision": "APPROVED",
+  "risk_level": "LOW",
+  "final_risk": 0.090761,
+  "on_chain_risk": 0.001088,
+  "off_chain_risk": 0.3,
+  "authorized_for_module3": true,
+  "transaction_hash": null,
+  "timestamp": "2026-09-14T16:03:58.254634+00:00"
+}

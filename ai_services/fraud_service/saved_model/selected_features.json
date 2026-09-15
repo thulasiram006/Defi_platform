@@ -1,0 +1,22 @@
+[
+    " Total ERC20 tnxs",
+    "Time Diff between first and last (Mins)",
+    "Unique Received From Addresses",
+    " ERC20 total Ether received",
+    " ERC20 max val rec",
+    "avg val received",
+    "total transactions (including tnx to create contract",
+    "Avg min between received tnx",
+    "total ether balance",
+    "total ether received",
+    "min value received",
+    "Received Tnx",
+    " ERC20 min val rec",
+    "min val sent",
+    "Sent tnx",
+    " ERC20 uniq rec contract addr",
+    " ERC20 uniq sent addr",
+    " ERC20 min val sent",
+    " ERC20 uniq rec addr",
+    "total Ether sent"
+]
