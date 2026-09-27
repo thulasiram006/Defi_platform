@@ -162,7 +162,7 @@ def send_docai_output_to_fraud_engine(final_output_data):
 
             json=docai_payload,
 
-            timeout=10
+            timeout=60
         )
 
 

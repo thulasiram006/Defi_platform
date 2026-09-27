@@ -2,7 +2,10 @@ import json
 import os
 import re
 from pathlib import Path
+from dotenv import load_dotenv
 
+load_dotenv()
+print("GEMINI KEY LOADED:", bool(os.getenv("GEMINI_API_KEY")))
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -1049,187 +1052,182 @@ def fallback_genai_explanation(
     }
 
 
-def generate_genai_explanation(
-    local_shap,
-    fraud_probability,
-    fraud_prediction,
-    wallet_transaction=None
-):
-    """
-    Gemini explains an already-made XGBoost decision.
-
-    XGBoost decides.
-    SHAP identifies important signals.
-    Gemini explains those signals in natural language.
-    """
+def generate_genai_explanation(local_shap, fraud_probability, fraud_prediction, wallet_transaction=None):
+    """XGBoost decides; SHAP selects signals; Gemini explains them."""
     fallback = fallback_genai_explanation(
-        local_shap,
-        fraud_probability,
-        fraud_prediction,
-        wallet_transaction
+        local_shap, fraud_probability, fraud_prediction, wallet_transaction
     )
 
     if genai is None or types is None:
+        print("GEMINI ERROR: google-genai SDK unavailable.")
         return fallback
 
     api_key = os.getenv("GEMINI_API_KEY")
-
     if not api_key:
+        print("GEMINI ERROR: GEMINI_API_KEY is not set.")
         return fallback
 
     signals = get_gemini_signals(
-        local_shap,
-        fraud_prediction,
-        wallet_transaction,
-        limit=4
+        local_shap, fraud_prediction, wallet_transaction, limit=4
     )
-
     if not signals:
+        print("GEMINI WARNING: No suitable SHAP signals.")
         return fallback
 
-    # Do not send wallet address or financial information to Gemini.
-    # Only send the strongest transaction-model signals.
     safe_signals = []
-
     for item in signals:
-        signal = {
-            "behaviour": item["signal"],
-            "effect": item["direction"],
-        }
-
+        s = {"behaviour": item["signal"], "effect": item["direction"]}
         if item.get("observed_value") is not None:
-            signal["observed_value"] = item["observed_value"]
-
-        safe_signals.append(signal)
-
-    prediction = (
-        "suspicious / fraud"
-        if fraud_prediction
-        else "benign / likely legitimate"
-    )
+            s["observed_value"] = item["observed_value"]
+        safe_signals.append(s)
 
     if fraud_prediction:
         title = "Why is this transaction suspicious?"
-
-        focus = """
-The transaction has already been classified as suspicious.
-Explain what about the supplied wallet behaviour made it look unusual.
-"""
-
+        decision = "SUSPICIOUS / FRAUD"
+        focus = """The transaction has already been classified as SUSPICIOUS.
+ONLY explain why the supplied behaviour looks suspicious or unusual.
+Every point MUST support the suspicious classification.
+Do NOT describe anything as safe, normal, legitimate, or low-risk."""
     else:
         title = "Why is this transaction considered safe?"
-
-        focus = """
-The transaction has already been classified as benign.
-Explain what about the supplied wallet behaviour looked normal or safer.
-Do not introduce suspicious reasons unless they are explicitly supplied.
-"""
+        decision = "BENIGN / LIKELY LEGITIMATE"
+        focus = """The transaction has already been classified as LIKELY LEGITIMATE.
+ONLY explain why the supplied behaviour looks normal, consistent, or safer.
+Every point MUST support the legitimate classification.
+Do NOT describe anything as suspicious, fraudulent, unusual, or high-risk."""
 
     prompt = f"""
-You are writing the explanation shown to a person on a DeFi fraud detection dashboard.
+You are the natural-language explanation component of a DeFi fraud detection dashboard.
 
 The fraud detector has ALREADY made the decision.
-You are NOT the decision maker.
 
-Decision: {prediction}
+Decision: {decision}
 Fraud probability: {fraud_probability * 100:.2f}%
 
-The strongest signals found by the fraud detector are:
+Strongest supplied signals:
 {json.dumps(safe_signals, indent=2)}
 
 {focus}
 
-Write a natural, friendly explanation that a college student or ordinary
-crypto user can understand.
-
-STRICT WRITING STYLE:
-- Give exactly 3 short points.
-- Each point should be about 8 to 20 words.
-- Sound like a helpful human, not a technical report.
-- Explain the behaviour and why it matters.
-- Use natural wording and vary the sentence structure.
-- Do NOT repeat "The wallet shows..." in every point.
-- Do NOT say "which increased the model's suspicion".
-- Do NOT say "which supported a legitimate classification".
-- Do NOT mention SHAP, XGBoost, features, weights, scores, algorithms,
-  machine learning, or model internals.
-- Do NOT invent facts.
-- Do NOT say the transaction is definitely fraudulent.
-- For benign results, do not call the transaction "guaranteed safe".
-- Do not include the fraud probability in the three points.
-- Return ONLY the three points, one point per line.
-- Do not number them.
+Rules:
+- Generate exactly 3 short points.
+- Each point must be one clear sentence.
+- Use simple language for an ordinary DeFi user.
+- Explain the supplied behaviour and why it matters.
+- Do not mention SHAP, XGBoost, machine learning, features, weights,
+  algorithms, or model internals.
+- Do not invent facts.
+- Do not change the supplied decision.
+- Never say the transaction is definitely fraudulent.
+- Never say a legitimate transaction is guaranteed safe.
+- Do not include the fraud probability in the points.
+- Return ONLY the three points, one per line.
+- Do not number the points.
 """
 
     try:
+        print("========== GEMINI EXPLANATION ==========")
+        print("Decision:", decision)
+        print("Signals:", safe_signals)
 
-        client = genai.Client(
-            api_key=api_key
-        )
-
+        client = genai.Client(api_key=api_key)
         response = client.models.generate_content(
             model=GEMINI_MODEL,
             contents=prompt,
             config=types.GenerateContentConfig(
-                temperature=0.7,
-                max_output_tokens=180,
-            ),
+                temperature=0.4,
+                max_output_tokens=180
+            )
         )
 
-        text = (
-            getattr(response, "text", None)
-            or ""
-        ).strip()
+        text = (getattr(response, "text", None) or "").strip()
+        print("Gemini response:", repr(text))
 
         points = []
 
         for line in text.splitlines():
+            line = re.sub(r"^[-•*]\s*", "", line.strip())
+            line = re.sub(r"^\d+[\.\)]\s*", "", line).strip()
 
-            line = line.strip()
-
-            if not line:
-                continue
-
-            # Remove accidental numbering/bullets.
-            line = re.sub(
-                r"^[-•*]\s*",
-                "",
-                line
-            )
-
-            line = re.sub(
-                r"^\d+[\.\)]\s*",
-                "",
-                line
-            )
-
-            line = line.strip()
-
-            if len(line) >= 15:
+            if len(line) >= 10:
                 points.append(line)
 
-        # Exactly 3 user-facing points.
-        if len(points) >= 3:
-            points = points[:3]
+        # If Gemini returns fewer than 3 points,
+        # ask it once more to format the answer correctly.
+        if len(points) < 3:
 
-        else:
-            return fallback
+            retry_prompt = f"""
+Rewrite this explanation into exactly 3 short points.
+
+Decision: {decision}
+
+Original explanation:
+{text}
+
+Rules:
+- Exactly 3 points
+- One sentence per point
+- Use very simple language
+- Support the existing decision
+- Do not change the decision
+- Do not mention SHAP, XGBoost, machine learning,
+  features, weights, or algorithms
+- Do not invent information
+- Return only the 3 points
+"""
+
+            retry_response = client.models.generate_content(
+                model=GEMINI_MODEL,
+                contents=retry_prompt,
+                config=types.GenerateContentConfig(
+                    temperature=0.3,
+                    max_output_tokens=250
+                )
+            )
+
+            retry_text = (
+                getattr(retry_response, "text", None) or ""
+            ).strip()
+
+            print(
+                "Gemini retry response:",
+                repr(retry_text)
+            )
+
+            points = []
+
+            for line in retry_text.splitlines():
+                line = re.sub(
+                    r"^[-•*]\s*",
+                    "",
+                    line.strip()
+                )
+                line = re.sub(
+                    r"^\d+[\.\)]\s*",
+                    "",
+                    line
+                ).strip()
+
+                if len(line) >= 10:
+                    points.append(line)
+
+        if len(points) < 3:
+            raise RuntimeError(
+                f"Gemini returned only {len(points)} usable points."
+            )
 
         return {
             "title": title,
-            "points": points,
+            "points": points[:3],
             "source": "Gemini GenAI"
         }
 
     except Exception as error:
-
-        print(
-            "Gemini explanation unavailable:",
-            error
-        )
-
+        print("========== GEMINI ACTUAL ERROR ==========")
+        print(type(error).__name__)
+        print(repr(error))
+        print("==========================================")
         return fallback
-
 
 def render_genai_explanation(explanation):
     """
@@ -2188,20 +2186,18 @@ if page == "◈ Live Risk Pipeline":
 
         offchain_data = assessment.get("off_chain_input", {})
         st.markdown("### Hybrid risk composition")
-        st.dataframe(
-            pd.DataFrame([
-                ["Loan / Income", offchain_data.get("loan_to_income_ratio", 0), offchain_data.get("loan_risk", 0)],
-                ["Liabilities / Income", offchain_data.get("liability_to_income_ratio", 0), offchain_data.get("liability_risk", 0)],
-                ["Discrepancy Ratio", offchain_data.get("discrepancy_ratio", 0), offchain_data.get("discrepancy_risk", 0)],
-                ["Off-chain combined", "—", off_chain],
-                ["Weighted on-chain", "70%", weighted_on],
-                ["Weighted off-chain", "30%", weighted_off],
-                ["DR penalty", "—", penalty],
-                ["FINAL RISK", "—", final_risk],
-            ], columns=["Component", "Ratio / Weight", "Risk"]),
-            use_container_width=True,
-            hide_index=True
-        )
+        risk_table = pd.DataFrame([
+            ["Loan / Income", str(offchain_data.get("loan_to_income_ratio", 0)), float(offchain_data.get("loan_risk", 0) or 0)],
+            ["Liabilities / Income", str(offchain_data.get("liability_to_income_ratio", 0)), float(offchain_data.get("liability_risk", 0) or 0)],
+            ["Discrepancy Ratio", str(offchain_data.get("discrepancy_ratio", 0)), float(offchain_data.get("discrepancy_risk", 0) or 0)],
+            ["Off-chain combined", "—", float(off_chain)],
+            ["Weighted on-chain", "70%", float(weighted_on)],
+            ["Weighted off-chain", "30%", float(weighted_off)],
+            ["DR penalty", "—", float(penalty)],
+            ["FINAL RISK", "—", float(final_risk)],
+        ], columns=["Component", "Ratio / Weight", "Risk"])
+
+        st.dataframe(risk_table, use_container_width=True, hide_index=True)
 
         left, right = st.columns(
             [1.25, 1],
